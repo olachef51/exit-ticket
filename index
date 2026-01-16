@@ -1,0 +1,535 @@
+<!-- start SEKTION X: EXIT TICKET MINIAPP (FRISTÅENDE HTML + FIREBASE) -->
+<!-- ÄNDRING: NY FIL — Exit ticket miniapp med elevform + lärarvy, Firestore-lagring (anonym + Google). (Nya rader: 535) -->
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Exit ticket</title>
+  <style>
+    :root{--bg:#0b1220;--card:#0f1a30;--border:#223255;--text:#e6edf7;--muted:#a9b6cc;--accent:#38bdf8;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444;}
+    *{box-sizing:border-box} html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);}
+    .wrap{max-width:980px;margin:0 auto;padding:16px;}
+    .top{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px;}
+    .brand h1{margin:0;font-size:18px} .brand .sub{font-size:12px;color:var(--muted)}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;width:100%;}
+    h2{margin:0 0 10px;font-size:16px}
+    label{display:block;font-size:13px;color:var(--muted);margin:0 0 6px}
+    input[type=text],textarea{width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0b1530;color:var(--text);outline:none}
+    textarea{min-height:84px;resize:vertical}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px} @media (max-width:720px){.grid{grid-template-columns:1fr}}
+    .btn{border:1px solid var(--border);background:#0b1530;color:var(--text);padding:10px 12px;border-radius:12px;cursor:pointer;font-weight:700}
+    .btn:hover{border-color:#2f4679} .btn.primary{border-color:#176a85;background:rgba(56,189,248,.12)}
+    .btn.danger{border-color:#7f1d1d;background:rgba(239,68,68,.10)} .btn.small{padding:8px 10px;border-radius:10px;font-size:13px}
+    .chip{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:999px;font-size:12px;color:var(--muted)}
+    .chip b{color:var(--text)}
+    .status{font-size:12px;color:var(--muted)} .status.ok{color:var(--ok)} .status.warn{color:var(--warn)} .status.err{color:var(--err)}
+    .divider{height:1px;background:var(--border);margin:12px 0}
+    .checks{display:flex;gap:10px;flex-wrap:wrap}
+    .check{display:flex;gap:8px;align-items:center;border:1px solid var(--border);border-radius:999px;padding:8px 10px;background:#0b1530;user-select:none}
+    .check input{transform:scale(1.2)}
+    .hint{font-size:12px;color:var(--muted);margin-top:6px}
+    .hidden{display:none !important}
+    .range{display:flex;gap:12px;align-items:center} input[type=range]{width:100%} .rangeVal{min-width:40px;text-align:center;font-weight:900}
+    table{width:100%;border-collapse:collapse;font-size:13px} th,td{border-bottom:1px solid var(--border);padding:8px 6px;vertical-align:top} th{color:var(--muted);text-align:left}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <h1>Exit ticket</h1>
+        <div class="sub">Snabb reflektion efter lektionen (1–2 minuter)</div>
+      </div>
+      <div class="row">
+        <button id="btnTeacherToggle" class="btn small" type="button">👩‍🏫 Lärarvy</button>
+        <button id="btnGoogleLogin" class="btn small primary hidden" type="button">☁️ Logga in (Google)</button>
+        <button id="btnGoogleLogout" class="btn small danger hidden" type="button">Logga ut</button>
+      </div>
+      <div class="status" id="authStatus">Startar…</div>
+    </div>
+
+    <!-- ELEVVY -->
+    <section id="studentSection" class="card">
+      <h2>Elev</h2>
+
+      <div class="grid">
+        <div>
+          <label for="studentName">Namn</label>
+          <input id="studentName" type="text" placeholder="Skriv ditt namn" autocomplete="name" />
+        </div>
+        <div>
+          <label for="studentClass">Klass</label>
+          <input id="studentClass" type="text" placeholder="t.ex. HRHOT25" autocomplete="organization" />
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div>
+        <label>1) Vad gjorde du idag? (välj 1–3)</label>
+        <div class="checks" id="didTodayWrap">
+          <label class="check"><input type="checkbox" value="hygien"> Hygien</label>
+          <label class="check"><input type="checkbox" value="teknik"> Teknik</label>
+          <label class="check"><input type="checkbox" value="samarbete"> Samarbete</label>
+          <label class="check"><input type="checkbox" value="service"> Service</label>
+          <label class="check"><input type="checkbox" value="annat"> Annat</label>
+        </div>
+        <div class="hint">Du kan välja max 3.</div>
+      </div>
+
+      <div style="margin-top:10px">
+        <label for="q2">2) Vad gick bra eller vad gick dåligt?</label>
+        <textarea id="q2" placeholder="Skriv kort..."></textarea>
+      </div>
+
+      <div style="margin-top:10px">
+        <label for="q3">3) Var det något som var svårt?</label>
+        <textarea id="q3" placeholder="Skriv kort..."></textarea>
+      </div>
+
+      <div style="margin-top:10px">
+        <label>4) Hur mycket stress kände du?</label>
+        <div class="range">
+          <input id="stress" type="range" min="0" max="10" step="1" value="0" />
+          <div class="rangeVal" id="stressVal">0</div>
+        </div>
+        <div class="hint">0 = ingen stress, 10 = väldigt mycket stress</div>
+      </div>
+
+      <div style="margin-top:10px">
+        <label for="q5">5) Vad har du lärt dig idag?</label>
+        <textarea id="q5" placeholder="Skriv kort..."></textarea>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="row" style="justify-content:space-between">
+        <div class="row">
+          <span class="chip">Datum: <b id="todayIso">—</b></span>
+          <span class="chip">Lärare-ID: <b class="mono" id="tuidText">—</b></span>
+          <span class="chip">Token: <b class="mono" id="tokenText">—</b></span>
+        </div>
+        <div class="row">
+          <button id="btnSubmit" class="btn primary" type="button">✅ Skicka</button>
+          <button id="btnClear" class="btn" type="button">Rensa</button>
+        </div>
+      </div>
+
+      <div class="status" id="submitStatus" style="margin-top:10px"></div>
+      <div class="hint" style="margin-top:8px">
+        Elevlänk måste innehålla <span class="mono">tuid</span>. Exempel: <span class="mono">exit.html?tuid=DIN_UID</span>
+      </div>
+    </section>
+
+    <!-- LÄRARVY -->
+    <section id="teacherSection" class="card hidden" style="margin-top:12px">
+      <h2>Lärare</h2>
+
+      <div class="row">
+        <span class="chip">Din UID: <b class="mono" id="myUid">—</b></span>
+        <span class="chip">Tips elevlänk: <b class="mono" id="myLink">—</b></span>
+      </div>
+
+      <div class="grid" style="margin-top:10px">
+        <div>
+          <label for="filterDate">Filter: datum (yyyy-mm-dd)</label>
+          <input id="filterDate" type="text" placeholder="tom = alla" />
+        </div>
+        <div>
+          <label for="filterClass">Filter: klass</label>
+          <input id="filterClass" type="text" placeholder="tom = alla" />
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top:10px">
+        <div>
+          <label for="filterSearch">Sök (namn, text, token)</label>
+          <input id="filterSearch" type="text" placeholder="sök..." />
+        </div>
+        <div class="row" style="justify-content:flex-end;align-items:flex-end">
+          <button id="btnReload" class="btn small primary" type="button">🔄 Ladda senaste</button>
+          <button id="btnExport" class="btn small" type="button">⬇️ Exportera CSV</button>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="row">
+        <span class="chip">Visar: <b id="kpiCount">0</b></span>
+        <span class="chip">Senast laddad: <b id="kpiLoadedAt">—</b></span>
+      </div>
+
+      <div class="status" id="teacherStatus" style="margin-top:10px"></div>
+
+      <div style="overflow:auto;margin-top:10px">
+        <table>
+          <thead>
+            <tr>
+              <th>Datum</th><th>Namn</th><th>Klass</th><th>Gjorde</th><th>Stress</th>
+              <th>Gick bra/dåligt</th><th>Svårt</th><th>Lärt</th><th>Token</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+
+      <div class="hint" style="margin-top:10px">
+        Lärarvyn kräver Google-inloggning. Elever loggas in anonymt automatiskt för att kunna skicka svar.
+      </div>
+    </section>
+  </div>
+
+  <!-- Firebase (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+  <script>
+  "use strict";
+
+  /* start Sektion X1: KONFIG + STATE */
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyCMDcMxvZdtdQB3I4SJdibcq9UPJ7Mg1u8",
+    authDomain: "fangvaktaren-904db.firebaseapp.com",
+    projectId: "fangvaktaren-904db",
+    storageBucket: "fangvaktaren-904db.firebasestorage.app",
+    messagingSenderId: "105301219768",
+    appId: "1:105301219768:web:66b131fba86a541b78174d",
+    measurementId: "G-NXL9GSFZ77"
+  };
+
+  const $ = (id)=>document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  const tuid = (qs.get("tuid") || "").trim();
+  const token = (qs.get("token") || "").trim();
+  const startTeacher = (qs.get("teacher") === "1");
+
+  let app=null, auth=null, db=null;
+  let user=null;         // kan vara anonymous eller google
+  let rowsCache=[];      // senaste laddade svar
+  /* slut Sektion X1: KONFIG + STATE */
+
+  /* start Sektion X2: HELPERS */
+  function localDateISO(d=new Date()){
+    return new Intl.DateTimeFormat("sv-SE",{year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
+  }
+  function nowTime(){
+    return new Intl.DateTimeFormat("sv-SE",{hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(new Date());
+  }
+  function setStatus(el, text, cls){
+    if(!el) return;
+    el.textContent = text || "";
+    el.className = "status" + (cls ? (" "+cls) : "");
+  }
+  function esc(s){
+    return String(s ?? "").replace(/[&<>"']/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+  function setTeacherLink(uid){
+    const base = location.href.split("?")[0];
+    $("myUid").textContent = uid || "—";
+    $("myLink").textContent = uid ? `${base}?tuid=${uid}` : "—";
+  }
+  /* slut Sektion X2: HELPERS */
+
+  /* start Sektion X3: UI-BIND (didToday max 3 + stress) */
+  function getDidToday(){
+    return Array.from(document.querySelectorAll("#didTodayWrap input[type=checkbox]"))
+      .filter(b=>b.checked).map(b=>b.value);
+  }
+  function bindDidTodayMax3(){
+    const wrap = $("didTodayWrap");
+    wrap.addEventListener("change", ()=>{
+      const boxes = Array.from(wrap.querySelectorAll("input[type=checkbox]"));
+      const checked = boxes.filter(b=>b.checked);
+      if (checked.length > 3){
+        const last = document.activeElement;
+        if (last && last.type === "checkbox") last.checked = false;
+        setStatus($("submitStatus"), "Du kan välja max 3 i fråga 1.", "warn");
+      }
+    });
+  }
+  function bindStress(){
+    const r=$("stress"), v=$("stressVal");
+    const upd=()=>v.textContent=String(r.value);
+    r.addEventListener("input", upd); upd();
+  }
+  /* slut Sektion X3: UI-BIND (didToday max 3 + stress) */
+
+  /* start Sektion X4: FIREBASE INIT + AUTH */
+  function initFirebase(){
+    app = firebase.initializeApp(FIREBASE_CONFIG);
+    auth = firebase.auth();
+    db = firebase.firestore();
+
+    auth.onAuthStateChanged((u)=>{
+      user = u || null;
+
+      const isAnon = !!(user && user.isAnonymous);
+      const isGoogle = !!(user && !user.isAnonymous);
+
+      $("btnGoogleLogin").classList.toggle("hidden", isGoogle);
+      $("btnGoogleLogout").classList.toggle("hidden", !isGoogle);
+
+      if (isGoogle){
+        setStatus($("authStatus"), `Inloggad: ${user.email || "lärare"}`, "ok");
+        setTeacherLink(user.uid || "");
+        if (!$("teacherSection").classList.contains("hidden")) loadTeacherRows().catch(()=>{});
+      } else if (isAnon){
+        setStatus($("authStatus"), "Elev-läge: anonym inloggning aktiv.", "");
+        setTeacherLink("");
+      } else {
+        setStatus($("authStatus"), "Inte inloggad.", "");
+        setTeacherLink("");
+      }
+    });
+
+    // För elevskick krävs att Anonymous auth är aktiverat i Firebase Console.
+    auth.signInAnonymously().catch((e)=>{
+      console.error(e);
+      setStatus($("submitStatus"), "❌ Anonymous auth är inte aktiverat i Firebase. Slå på det i Console.", "err");
+    });
+  }
+
+  async function googleLogin(){
+    try{
+      const provider = new firebase.auth.GoogleAuthProvider();
+      await auth.signInWithPopup(provider);
+    }catch(e){
+      console.error(e);
+      setStatus($("authStatus"), "Kunde inte logga in. Kolla popup-blockering.", "err");
+    }
+  }
+
+  async function googleLogout(){
+    try{ await auth.signOut(); }catch(e){
+      console.error(e);
+      setStatus($("authStatus"), "Kunde inte logga ut.", "err");
+    } finally {
+      // återställ elev-läge
+      auth.signInAnonymously().catch(()=>{});
+    }
+  }
+  /* slut Sektion X4: FIREBASE INIT + AUTH */
+
+  /* start Sektion X5: SUBMIT (ELEV) */
+  function validate(){
+    const name = ($("studentName").value||"").trim();
+    const klass = ($("studentClass").value||"").trim();
+    const did = getDidToday();
+
+    if (!tuid) return {err:"Saknar tuid i länken. Be läraren om rätt länk."};
+    if (!name || !klass) return {err:"Skriv namn och klass först."};
+    if (did.length < 1) return {err:"Välj minst 1 i fråga 1."};
+
+    return {ok:true, payload:{
+      teacherUid: tuid,
+      dateISO: localDateISO(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      studentName: name,
+      studentClass: klass,
+      token: token || "",
+      didToday: did,
+      q2: ($("q2").value||"").trim(),
+      q3: ($("q3").value||"").trim(),
+      stress: Number($("stress").value||0),
+      q5: ($("q5").value||"").trim(),
+      meta: { tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "", ua: navigator.userAgent || "" }
+    }};
+  }
+
+  async function submit(){
+    try{
+      setStatus($("submitStatus"), "Skickar…", "");
+      const v = validate();
+      if (v.err){ setStatus($("submitStatus"), v.err, "warn"); return; }
+      await db.collection("exitTicketResponses").add(v.payload);
+      setStatus($("submitStatus"), "✅ Skickat! Tack.", "ok");
+
+      // rensa (behåll namn/klass)
+      $("q2").value=""; $("q3").value=""; $("q5").value="";
+      $("stress").value="0"; $("stress").dispatchEvent(new Event("input"));
+      document.querySelectorAll("#didTodayWrap input[type=checkbox]").forEach(b=>b.checked=false);
+    }catch(e){
+      console.error(e);
+      setStatus($("submitStatus"), "❌ Kunde inte skicka. Kolla nätverk eller Firestore-regler.", "err");
+    }
+  }
+
+  function clear(){
+    $("studentName").value=""; $("studentClass").value="";
+    $("q2").value=""; $("q3").value=""; $("q5").value="";
+    $("stress").value="0"; $("stress").dispatchEvent(new Event("input"));
+    document.querySelectorAll("#didTodayWrap input[type=checkbox]").forEach(b=>b.checked=false);
+    setStatus($("submitStatus"), "", "");
+  }
+  /* slut Sektion X5: SUBMIT (ELEV) */
+
+  /* start Sektion X6: TEACHER VIEW (load + filter + csv) */
+  function getFilters(){
+    return {
+      dateISO: ($("filterDate").value||"").trim(),
+      klass: ($("filterClass").value||"").trim().toLowerCase(),
+      search: ($("filterSearch").value||"").trim().toLowerCase()
+    };
+  }
+
+  function matches(r,f){
+    if (f.dateISO && (r.dateISO||"") !== f.dateISO) return false;
+    if (f.klass && (r.studentClass||"").toLowerCase() !== f.klass) return false;
+    if (f.search){
+      const hay=[r.studentName,r.studentClass,(r.didToday||[]).join(" "),r.q2,r.q3,r.q5,r.token].join(" ").toLowerCase();
+      if (!hay.includes(f.search)) return false;
+    }
+    return true;
+  }
+
+  function render(){
+    const f = getFilters();
+    const list = rowsCache.filter(r=>matches(r,f));
+    $("kpiCount").textContent = String(list.length);
+
+    const tbody = $("rows"); tbody.innerHTML="";
+    if (!list.length){ tbody.innerHTML = `<tr><td colspan="9" class="status warn">Inga träffar.</td></tr>`; return; }
+
+    const frag=document.createDocumentFragment();
+    list.forEach(r=>{
+      const tr=document.createElement("tr");
+      tr.innerHTML =
+        `<td>${esc(r.dateISO)}</td>
+         <td>${esc(r.studentName)}</td>
+         <td>${esc(r.studentClass)}</td>
+         <td>${esc(r.didToday.join(", "))}</td>
+         <td><b>${esc(r.stress)}</b></td>
+         <td>${esc(r.q2)}</td>
+         <td>${esc(r.q3)}</td>
+         <td>${esc(r.q5)}</td>
+         <td class="mono">${esc(r.token)}</td>`;
+      frag.appendChild(tr);
+    });
+    tbody.appendChild(frag);
+  }
+
+  function toCSV(list){
+    const header=["dateISO","studentName","studentClass","didToday","stress","q2","q3","q5","token"];
+    const lines=[header.join(",")];
+
+    list.forEach(r=>{
+      const vals=[r.dateISO,r.studentName,r.studentClass,r.didToday.join("|"),r.stress,r.q2,r.q3,r.q5,r.token].map(v=>{
+        const s=String(v??"").replace(/"/g,'""').replace(/\r?\n/g," ").trim();
+        return `"${s}"`;
+      });
+      lines.push(vals.join(","));
+    });
+    return lines.join("\n");
+  }
+
+  function download(filename,text){
+    const blob=new Blob([text],{type:"text/plain;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download=filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),500);
+  }
+
+  async function loadTeacherRows(){
+    try{
+      if (!user || user.isAnonymous){
+        setStatus($("teacherStatus"), "Logga in med Google för att se svar.", "warn");
+        return;
+      }
+
+      setStatus($("teacherStatus"), "Laddar…", "");
+      const uid = user.uid;
+
+      // OBS: kan kräva index (Firebase Console) eftersom where + orderBy används.
+      const snap = await db.collection("exitTicketResponses")
+        .where("teacherUid","==",uid)
+        .orderBy("createdAt","desc")
+        .limit(250)
+        .get();
+
+      rowsCache = [];
+      snap.forEach(doc=>{
+        const d=doc.data()||{};
+        rowsCache.push({
+          id: doc.id,
+          dateISO: d.dateISO||"",
+          studentName: d.studentName||"",
+          studentClass: d.studentClass||"",
+          didToday: Array.isArray(d.didToday)?d.didToday:[],
+          stress: (typeof d.stress==="number")?d.stress:"",
+          q2: d.q2||"", q3: d.q3||"", q5: d.q5||"",
+          token: d.token||""
+        });
+      });
+
+      $("kpiLoadedAt").textContent = `${localDateISO()} ${nowTime()}`;
+      setStatus($("teacherStatus"), `✅ Laddade ${rowsCache.length} svar (visar efter filter).`, "ok");
+      render();
+    }catch(e){
+      console.error(e);
+      setStatus($("teacherStatus"), "❌ Kunde inte ladda. Kolla Firestore-regler/index.", "err");
+    }
+  }
+
+  function toggleTeacher(forceOpen=null){
+    const sec=$("teacherSection");
+    const open=(forceOpen!==null)?forceOpen:sec.classList.contains("hidden");
+    sec.classList.toggle("hidden", !open);
+    if (open){
+      if (!user || user.isAnonymous) setStatus($("teacherStatus"), "Logga in med Google för att se svar.", "warn");
+      else loadTeacherRows().catch(()=>{});
+    }
+  }
+
+  function bindTeacherFilters(){
+    ["filterDate","filterClass","filterSearch"].forEach(id=>$(id).addEventListener("input", render));
+  }
+  /* slut Sektion X6: TEACHER VIEW (load + filter + csv) */
+
+  /* start Sektion X7: BOOT */
+  document.addEventListener("DOMContentLoaded", ()=>{
+    $("todayIso").textContent = localDateISO();
+    $("tuidText").textContent = tuid || "—";
+    $("tokenText").textContent = token || "—";
+
+    if (!tuid) setStatus($("submitStatus"), "Saknar tuid i länken. Be läraren om rätt länk.", "warn");
+
+    bindDidTodayMax3();
+    bindStress();
+    bindTeacherFilters();
+
+    $("btnSubmit").addEventListener("click", submit);
+    $("btnClear").addEventListener("click", clear);
+    $("btnTeacherToggle").addEventListener("click", ()=>toggleTeacher(null));
+    $("btnGoogleLogin").addEventListener("click", googleLogin);
+    $("btnGoogleLogout").addEventListener("click", googleLogout);
+
+    $("btnReload").addEventListener("click", ()=>loadTeacherRows().catch(()=>{}));
+    $("btnExport").addEventListener("click", ()=>{
+      const f=getFilters();
+      const list=rowsCache.filter(r=>matches(r,f));
+      download(`exit-tickets_${localDateISO()}_${list.length}st.csv`, toCSV(list));
+    });
+
+    initFirebase();
+    if (startTeacher) toggleTeacher(true);
+  });
+  /* slut Sektion X7: BOOT */
+
+  /* ===== TEKNIKKRAV (för att funka direkt)
+     1) Anonymous auth: aktivera i Firebase Console -> Authentication -> Sign-in method -> Anonymous
+     2) Hosting: använd https eller localhost (Popup-login kan strula på file://)
+     3) Firestore rules (minimalförslag):
+        match /exitTicketResponses/{doc} {
+          allow create: if request.auth != null;
+          allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.teacherUid;
+        }
+  ===== */
+  </script>
+</body>
+</html>
+<!-- slut SEKTION X: EXIT TICKET MINIAPP (FRISTÅENDE HTML + FIREBASE) -->
