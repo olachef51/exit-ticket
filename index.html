@@ -1,5 +1,5 @@
 <!-- start SEKTION X: EXIT TICKET MINIAPP (FRISTÅENDE HTML + FIREBASE) -->
-<!-- ÄNDRING: LÄRARVY — visar nu endast frågesvar (Q1–Q5) i tabell + CSV-export. -->
+<!-- ÄNDRING: LÄRARLÄGE — elevformuläret döljs helt i lärarvy (inkl ?teacher=1). Lärarvyn visar bara svarstabellen. Kolumnrubriker neutrala (Svar 1–Svar 5). -->
 <!doctype html>
 <html lang="sv">
 <head>
@@ -187,11 +187,11 @@
         <table>
           <thead>
             <tr>
-              <th>Q1 Gjorde (1–3)</th>
-              <th>Q2 Bra/dåligt</th>
-              <th>Q3 Svårt</th>
-              <th>Q4 Stress</th>
-              <th>Q5 Lärt</th>
+              <th>Svar 1</th>
+              <th>Svar 2</th>
+              <th>Svar 3</th>
+              <th>Svar 4</th>
+              <th>Svar 5</th>
             </tr>
           </thead>
           <tbody id="rows"></tbody>
@@ -257,6 +257,11 @@
     const base = location.href.split("?")[0];
     $("myUid").textContent = uid || "—";
     $("myLink").textContent = uid ? `${base}?tuid=${uid}` : "—";
+  }
+  function setStudentHidden(hidden){
+    const s = $("studentSection");
+    if (!s) return;
+    s.classList.toggle("hidden", !!hidden);
   }
   /* slut Sektion X4: HELPERS */
 
@@ -403,7 +408,7 @@
   }
   /* slut Sektion X7: SUBMIT (ELEV) */
 
-  /* start Sektion X8: TEACHER VIEW (load + filter + csv) */
+  /* start Sektion X8: TEACHER VIEW (load + filter + csv + hide student) */
   function getFilters(){
     return {
       dateISO: ($("filterDate").value||"").trim(),
@@ -445,7 +450,7 @@
   }
 
   function toCSV(list){
-    const header=["q1_didToday","q2_goodBad","q3_hard","q4_stress","q5_learned"];
+    const header=["svar1","svar2","svar3","svar4","svar5"];
     const lines=[header.join(",")];
 
     list.forEach(r=>{
@@ -514,9 +519,12 @@
 
   function toggleTeacher(forceOpen=null){
     const sec=$("teacherSection");
-    const open=(forceOpen!==null)?forceOpen:sec.classList.contains("hidden");
-    sec.classList.toggle("hidden", !open);
-    if (open){
+    const opening = (forceOpen!==null) ? forceOpen : sec.classList.contains("hidden");
+
+    sec.classList.toggle("hidden", !opening);
+    setStudentHidden(opening); /* FIX: döljer elevformulär när lärarvy är öppen */
+
+    if (opening){
       if (!user || user.isAnonymous) setStatus($("teacherStatus"), "Logga in med Google för att se svar.", "warn");
       else loadTeacherRows().catch(()=>{});
     }
@@ -525,7 +533,7 @@
   function bindTeacherFilters(){
     ["filterDate","filterClass","filterSearch"].forEach(id=>$(id).addEventListener("input", render));
   }
-  /* slut Sektion X8: TEACHER VIEW (load + filter + csv) */
+  /* slut Sektion X8: TEACHER VIEW (load + filter + csv + hide student) */
 
   /* start Sektion X9: BOOT */
   document.addEventListener("DOMContentLoaded", ()=>{
@@ -553,7 +561,10 @@
     });
 
     initFirebase();
+
+    /* FIX: Starta i lärarläge utan elevformulär när ?teacher=1 */
     if (startTeacher) toggleTeacher(true);
+    else setStudentHidden(false);
   });
   /* slut Sektion X9: BOOT */
   </script>
