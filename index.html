@@ -1,6 +1,5 @@
 <!-- start SEKTION X: EXIT TICKET MINIAPP (FRISTÅENDE HTML + FIREBASE) -->
-<!-- ÄNDRING: FIX — Teacher-läge (?teacher=1) kör inte längre anonymous. Om användaren råkar vara anonymous i teacher-läge loggas den ut automatiskt och väntar på Google-login. Samtidigt uppdelad i tydliga sektioner. -->
-
+<!-- ÄNDRING: LÄRARVY — visar nu endast frågesvar (Q1–Q5) i tabell + CSV-export. -->
 <!doctype html>
 <html lang="sv">
 <head>
@@ -188,8 +187,11 @@
         <table>
           <thead>
             <tr>
-              <th>Datum</th><th>Namn</th><th>Klass</th><th>Gjorde</th><th>Stress</th>
-              <th>Gick bra/dåligt</th><th>Svårt</th><th>Lärt</th><th>Token</th>
+              <th>Q1 Gjorde (1–3)</th>
+              <th>Q2 Bra/dåligt</th>
+              <th>Q3 Svårt</th>
+              <th>Q4 Stress</th>
+              <th>Q5 Lärt</th>
             </tr>
           </thead>
           <tbody id="rows"></tbody>
@@ -294,7 +296,6 @@
       const isAnon = !!(user && user.isAnonymous);
       const isGoogle = !!(user && !user.isAnonymous);
 
-      // FIX: Teacher-läge ska aldrig stanna i anonymous
       if (startTeacher && isAnon && !_teacherGuard){
         _teacherGuard = true;
         try{ await auth.signOut(); }catch(_e){}
@@ -318,14 +319,12 @@
       }
     });
 
-    // FIX: Anonymous ska bara initieras i elevläge
     if (!startTeacher){
       auth.signInAnonymously().catch((e)=>{
         console.error(e);
         setStatus($("submitStatus"), "❌ Anonymous auth kunde inte startas. Kolla Authentication -> Sign-in method -> Anonymous.", "err");
       });
     } else {
-      // Teacher-läge: visa rätt status direkt
       setStatus($("authStatus"), "Lärarläge: logga in med Google.", "");
     }
   }
@@ -345,7 +344,6 @@
       console.error(e);
       setStatus($("authStatus"), "Kunde inte logga ut.", "err");
     } finally {
-      // FIX: återställ bara till anonymous om vi är i elevläge
       if (!startTeacher){
         auth.signInAnonymously().catch(()=>{});
       }
@@ -418,7 +416,7 @@
     if (f.dateISO && (r.dateISO||"") !== f.dateISO) return false;
     if (f.klass && (r.studentClass||"").toLowerCase() !== f.klass) return false;
     if (f.search){
-      const hay=[r.studentName,r.studentClass,(r.didToday||[]).join(" "),r.q2,r.q3,r.q5,r.token].join(" ").toLowerCase();
+      const hay=[(r.didToday||[]).join(" "),r.q2,r.q3,r.q5,String(r.stress)].join(" ").toLowerCase();
       if (!hay.includes(f.search)) return false;
     }
     return true;
@@ -430,31 +428,34 @@
     $("kpiCount").textContent = String(list.length);
 
     const tbody = $("rows"); tbody.innerHTML="";
-    if (!list.length){ tbody.innerHTML = `<tr><td colspan="9" class="status warn">Inga träffar.</td></tr>`; return; }
+    if (!list.length){ tbody.innerHTML = `<tr><td colspan="5" class="status warn">Inga träffar.</td></tr>`; return; }
 
     const frag=document.createDocumentFragment();
     list.forEach(r=>{
       const tr=document.createElement("tr");
       tr.innerHTML =
-        `<td>${esc(r.dateISO)}</td>
-         <td>${esc(r.studentName)}</td>
-         <td>${esc(r.studentClass)}</td>
-         <td>${esc(r.didToday.join(", "))}</td>
-         <td><b>${esc(r.stress)}</b></td>
+        `<td>${esc((r.didToday||[]).join(", "))}</td>
          <td>${esc(r.q2)}</td>
          <td>${esc(r.q3)}</td>
-         <td>${esc(r.q5)}</td>
-         <td class="mono">${esc(r.token)}</td>`;
+         <td><b>${esc(r.stress)}</b></td>
+         <td>${esc(r.q5)}</td>`;
       frag.appendChild(tr);
     });
     tbody.appendChild(frag);
   }
 
   function toCSV(list){
-    const header=["dateISO","studentName","studentClass","didToday","stress","q2","q3","q5","token"];
+    const header=["q1_didToday","q2_goodBad","q3_hard","q4_stress","q5_learned"];
     const lines=[header.join(",")];
+
     list.forEach(r=>{
-      const vals=[r.dateISO,r.studentName,r.studentClass,r.didToday.join("|"),r.stress,r.q2,r.q3,r.q5,r.token].map(v=>{
+      const vals=[
+        (r.didToday||[]).join("|"),
+        r.q2||"",
+        r.q3||"",
+        (typeof r.stress==="number" || typeof r.stress==="string") ? r.stress : "",
+        r.q5||""
+      ].map(v=>{
         const s=String(v??"").replace(/"/g,'""').replace(/\r?\n/g," ").trim();
         return `"${s}"`;
       });
@@ -555,7 +556,6 @@
     if (startTeacher) toggleTeacher(true);
   });
   /* slut Sektion X9: BOOT */
-
   </script>
 </body>
 </html>
