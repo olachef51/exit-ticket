@@ -1,53 +1,73 @@
 <!-- start SEKTION X: EXIT TICKET MINIAPP (FRISTÅENDE HTML + FIREBASE) -->
-<!-- ÄNDRING: NY FIL — Exit ticket miniapp med elevform + lärarvy, Firestore-lagring (anonym + Google). (Nya rader: 535) -->
+<!-- ÄNDRING: FIX — Teacher-läge (?teacher=1) kör inte längre anonymous. Om användaren råkar vara anonymous i teacher-läge loggas den ut automatiskt och väntar på Google-login. Samtidigt uppdelad i tydliga sektioner. -->
+
 <!doctype html>
 <html lang="sv">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Exit ticket</title>
+
+  <!-- start Sektion X0: STIL -->
   <style>
     :root{--bg:#0b1220;--card:#0f1a30;--border:#223255;--text:#e6edf7;--muted:#a9b6cc;--accent:#38bdf8;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444;}
-    *{box-sizing:border-box} html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);}
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);}
     .wrap{max-width:980px;margin:0 auto;padding:16px;}
     .top{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px;}
-    .brand h1{margin:0;font-size:18px} .brand .sub{font-size:12px;color:var(--muted)}
+    .brand h1{margin:0;font-size:18px}
+    .brand .sub{font-size:12px;color:var(--muted)}
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;width:100%;}
     h2{margin:0 0 10px;font-size:16px}
     label{display:block;font-size:13px;color:var(--muted);margin:0 0 6px}
     input[type=text],textarea{width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0b1530;color:var(--text);outline:none}
     textarea{min-height:84px;resize:vertical}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px} @media (max-width:720px){.grid{grid-template-columns:1fr}}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media (max-width:720px){.grid{grid-template-columns:1fr}}
     .btn{border:1px solid var(--border);background:#0b1530;color:var(--text);padding:10px 12px;border-radius:12px;cursor:pointer;font-weight:700}
-    .btn:hover{border-color:#2f4679} .btn.primary{border-color:#176a85;background:rgba(56,189,248,.12)}
-    .btn.danger{border-color:#7f1d1d;background:rgba(239,68,68,.10)} .btn.small{padding:8px 10px;border-radius:10px;font-size:13px}
+    .btn:hover{border-color:#2f4679}
+    .btn.primary{border-color:#176a85;background:rgba(56,189,248,.12)}
+    .btn.danger{border-color:#7f1d1d;background:rgba(239,68,68,.10)}
+    .btn.small{padding:8px 10px;border-radius:10px;font-size:13px}
     .chip{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:999px;font-size:12px;color:var(--muted)}
     .chip b{color:var(--text)}
-    .status{font-size:12px;color:var(--muted)} .status.ok{color:var(--ok)} .status.warn{color:var(--warn)} .status.err{color:var(--err)}
+    .status{font-size:12px;color:var(--muted)}
+    .status.ok{color:var(--ok)}
+    .status.warn{color:var(--warn)}
+    .status.err{color:var(--err)}
     .divider{height:1px;background:var(--border);margin:12px 0}
     .checks{display:flex;gap:10px;flex-wrap:wrap}
     .check{display:flex;gap:8px;align-items:center;border:1px solid var(--border);border-radius:999px;padding:8px 10px;background:#0b1530;user-select:none}
     .check input{transform:scale(1.2)}
     .hint{font-size:12px;color:var(--muted);margin-top:6px}
     .hidden{display:none !important}
-    .range{display:flex;gap:12px;align-items:center} input[type=range]{width:100%} .rangeVal{min-width:40px;text-align:center;font-weight:900}
-    table{width:100%;border-collapse:collapse;font-size:13px} th,td{border-bottom:1px solid var(--border);padding:8px 6px;vertical-align:top} th{color:var(--muted);text-align:left}
+    .range{display:flex;gap:12px;align-items:center}
+    input[type=range]{width:100%}
+    .rangeVal{min-width:40px;text-align:center;font-weight:900}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{border-bottom:1px solid var(--border);padding:8px 6px;vertical-align:top}
+    th{color:var(--muted);text-align:left}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
   </style>
+  <!-- slut Sektion X0: STIL -->
 </head>
+
 <body>
+  <!-- start Sektion X1: HTML -->
   <div class="wrap">
     <div class="top">
       <div class="brand">
         <h1>Exit ticket</h1>
         <div class="sub">Snabb reflektion efter lektionen (1–2 minuter)</div>
       </div>
+
       <div class="row">
         <button id="btnTeacherToggle" class="btn small" type="button">👩‍🏫 Lärarvy</button>
         <button id="btnGoogleLogin" class="btn small primary hidden" type="button">☁️ Logga in (Google)</button>
         <button id="btnGoogleLogout" class="btn small danger hidden" type="button">Logga ut</button>
       </div>
+
       <div class="status" id="authStatus">Startar…</div>
     </div>
 
@@ -181,25 +201,27 @@
       </div>
     </section>
   </div>
+  <!-- slut Sektion X1: HTML -->
 
-  <!-- Firebase (compat) -->
+  <!-- start Sektion X2: FIREBASE-SCRIPTS -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <!-- slut Sektion X2: FIREBASE-SCRIPTS -->
 
   <script>
   "use strict";
 
-  /* start Sektion X1: KONFIG + STATE */
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyB89Dm3MzkJMgod8QsLOKMK8-nv-uC3Srg",
-  authDomain: "exit-tickets-2b77e.firebaseapp.com",
-  projectId: "exit-tickets-2b77e",
-  storageBucket: "exit-tickets-2b77e.firebasestorage.app",
-  messagingSenderId: "765448986871",
-  appId: "1:765448986871:web:6bc9b12d10df8bf3e973f2",
-  measurementId: "G-6WSNH875D5"
-};
+  /* start Sektion X3: KONFIG + STATE */
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyB89Dm3MzkJMgod8QsLOKMK8-nv-uC3Srg",
+    authDomain: "exit-tickets-2b77e.firebaseapp.com",
+    projectId: "exit-tickets-2b77e",
+    storageBucket: "exit-tickets-2b77e.firebasestorage.app",
+    messagingSenderId: "765448986871",
+    appId: "1:765448986871:web:6bc9b12d10df8bf3e973f2",
+    measurementId: "G-6WSNH875D5"
+  };
 
   const $ = (id)=>document.getElementById(id);
   const qs = new URLSearchParams(location.search);
@@ -208,11 +230,13 @@ const FIREBASE_CONFIG = {
   const startTeacher = (qs.get("teacher") === "1");
 
   let app=null, auth=null, db=null;
-  let user=null;         // kan vara anonymous eller google
+  let user=null;         // anonymous eller google
   let rowsCache=[];      // senaste laddade svar
-  /* slut Sektion X1: KONFIG + STATE */
 
-  /* start Sektion X2: HELPERS */
+  let _teacherGuard = false; // skydd mot loop när vi signOut:ar anonymous i teacher-läge
+  /* slut Sektion X3: KONFIG + STATE */
+
+  /* start Sektion X4: HELPERS */
   function localDateISO(d=new Date()){
     return new Intl.DateTimeFormat("sv-SE",{year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
   }
@@ -232,9 +256,9 @@ const FIREBASE_CONFIG = {
     $("myUid").textContent = uid || "—";
     $("myLink").textContent = uid ? `${base}?tuid=${uid}` : "—";
   }
-  /* slut Sektion X2: HELPERS */
+  /* slut Sektion X4: HELPERS */
 
-  /* start Sektion X3: UI-BIND (didToday max 3 + stress) */
+  /* start Sektion X5: UI-BIND (didToday max 3 + stress) */
   function getDidToday(){
     return Array.from(document.querySelectorAll("#didTodayWrap input[type=checkbox]"))
       .filter(b=>b.checked).map(b=>b.value);
@@ -256,19 +280,27 @@ const FIREBASE_CONFIG = {
     const upd=()=>v.textContent=String(r.value);
     r.addEventListener("input", upd); upd();
   }
-  /* slut Sektion X3: UI-BIND (didToday max 3 + stress) */
+  /* slut Sektion X5: UI-BIND (didToday max 3 + stress) */
 
-  /* start Sektion X4: FIREBASE INIT + AUTH */
+  /* start Sektion X6: FIREBASE INIT + AUTH (FIX teacher=1) */
   function initFirebase(){
     app = firebase.initializeApp(FIREBASE_CONFIG);
     auth = firebase.auth();
     db = firebase.firestore();
 
-    auth.onAuthStateChanged((u)=>{
+    auth.onAuthStateChanged(async (u)=>{
       user = u || null;
 
       const isAnon = !!(user && user.isAnonymous);
       const isGoogle = !!(user && !user.isAnonymous);
+
+      // FIX: Teacher-läge ska aldrig stanna i anonymous
+      if (startTeacher && isAnon && !_teacherGuard){
+        _teacherGuard = true;
+        try{ await auth.signOut(); }catch(_e){}
+        _teacherGuard = false;
+        return;
+      }
 
       $("btnGoogleLogin").classList.toggle("hidden", isGoogle);
       $("btnGoogleLogout").classList.toggle("hidden", !isGoogle);
@@ -281,16 +313,21 @@ const FIREBASE_CONFIG = {
         setStatus($("authStatus"), "Elev-läge: anonym inloggning aktiv.", "");
         setTeacherLink("");
       } else {
-        setStatus($("authStatus"), "Inte inloggad.", "");
+        setStatus($("authStatus"), startTeacher ? "Lärarläge: logga in med Google." : "Inte inloggad.", "");
         setTeacherLink("");
       }
     });
 
-    // För elevskick krävs att Anonymous auth är aktiverat i Firebase Console.
-    auth.signInAnonymously().catch((e)=>{
-      console.error(e);
-      setStatus($("submitStatus"), "❌ Anonymous auth är inte aktiverat i Firebase. Slå på det i Console.", "err");
-    });
+    // FIX: Anonymous ska bara initieras i elevläge
+    if (!startTeacher){
+      auth.signInAnonymously().catch((e)=>{
+        console.error(e);
+        setStatus($("submitStatus"), "❌ Anonymous auth kunde inte startas. Kolla Authentication -> Sign-in method -> Anonymous.", "err");
+      });
+    } else {
+      // Teacher-läge: visa rätt status direkt
+      setStatus($("authStatus"), "Lärarläge: logga in med Google.", "");
+    }
   }
 
   async function googleLogin(){
@@ -299,7 +336,7 @@ const FIREBASE_CONFIG = {
       await auth.signInWithPopup(provider);
     }catch(e){
       console.error(e);
-      setStatus($("authStatus"), "Kunde inte logga in. Kolla popup-blockering.", "err");
+      setStatus($("authStatus"), "Kunde inte logga in. Kolla popup-blockering + att Google är Enabled + Authorized domains.", "err");
     }
   }
 
@@ -308,13 +345,15 @@ const FIREBASE_CONFIG = {
       console.error(e);
       setStatus($("authStatus"), "Kunde inte logga ut.", "err");
     } finally {
-      // återställ elev-läge
-      auth.signInAnonymously().catch(()=>{});
+      // FIX: återställ bara till anonymous om vi är i elevläge
+      if (!startTeacher){
+        auth.signInAnonymously().catch(()=>{});
+      }
     }
   }
-  /* slut Sektion X4: FIREBASE INIT + AUTH */
+  /* slut Sektion X6: FIREBASE INIT + AUTH (FIX teacher=1) */
 
-  /* start Sektion X5: SUBMIT (ELEV) */
+  /* start Sektion X7: SUBMIT (ELEV) */
   function validate(){
     const name = ($("studentName").value||"").trim();
     const klass = ($("studentClass").value||"").trim();
@@ -348,7 +387,6 @@ const FIREBASE_CONFIG = {
       await db.collection("exitTicketResponses").add(v.payload);
       setStatus($("submitStatus"), "✅ Skickat! Tack.", "ok");
 
-      // rensa (behåll namn/klass)
       $("q2").value=""; $("q3").value=""; $("q5").value="";
       $("stress").value="0"; $("stress").dispatchEvent(new Event("input"));
       document.querySelectorAll("#didTodayWrap input[type=checkbox]").forEach(b=>b.checked=false);
@@ -365,9 +403,9 @@ const FIREBASE_CONFIG = {
     document.querySelectorAll("#didTodayWrap input[type=checkbox]").forEach(b=>b.checked=false);
     setStatus($("submitStatus"), "", "");
   }
-  /* slut Sektion X5: SUBMIT (ELEV) */
+  /* slut Sektion X7: SUBMIT (ELEV) */
 
-  /* start Sektion X6: TEACHER VIEW (load + filter + csv) */
+  /* start Sektion X8: TEACHER VIEW (load + filter + csv) */
   function getFilters(){
     return {
       dateISO: ($("filterDate").value||"").trim(),
@@ -415,7 +453,6 @@ const FIREBASE_CONFIG = {
   function toCSV(list){
     const header=["dateISO","studentName","studentClass","didToday","stress","q2","q3","q5","token"];
     const lines=[header.join(",")];
-
     list.forEach(r=>{
       const vals=[r.dateISO,r.studentName,r.studentClass,r.didToday.join("|"),r.stress,r.q2,r.q3,r.q5,r.token].map(v=>{
         const s=String(v??"").replace(/"/g,'""').replace(/\r?\n/g," ").trim();
@@ -444,7 +481,6 @@ const FIREBASE_CONFIG = {
       setStatus($("teacherStatus"), "Laddar…", "");
       const uid = user.uid;
 
-      // OBS: kan kräva index (Firebase Console) eftersom where + orderBy används.
       const snap = await db.collection("exitTicketResponses")
         .where("teacherUid","==",uid)
         .orderBy("createdAt","desc")
@@ -488,9 +524,9 @@ const FIREBASE_CONFIG = {
   function bindTeacherFilters(){
     ["filterDate","filterClass","filterSearch"].forEach(id=>$(id).addEventListener("input", render));
   }
-  /* slut Sektion X6: TEACHER VIEW (load + filter + csv) */
+  /* slut Sektion X8: TEACHER VIEW (load + filter + csv) */
 
-  /* start Sektion X7: BOOT */
+  /* start Sektion X9: BOOT */
   document.addEventListener("DOMContentLoaded", ()=>{
     $("todayIso").textContent = localDateISO();
     $("tuidText").textContent = tuid || "—";
@@ -518,17 +554,8 @@ const FIREBASE_CONFIG = {
     initFirebase();
     if (startTeacher) toggleTeacher(true);
   });
-  /* slut Sektion X7: BOOT */
+  /* slut Sektion X9: BOOT */
 
-  /* ===== TEKNIKKRAV (för att funka direkt)
-     1) Anonymous auth: aktivera i Firebase Console -> Authentication -> Sign-in method -> Anonymous
-     2) Hosting: använd https eller localhost (Popup-login kan strula på file://)
-     3) Firestore rules (minimalförslag):
-        match /exitTicketResponses/{doc} {
-          allow create: if request.auth != null;
-          allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.teacherUid;
-        }
-  ===== */
   </script>
 </body>
 </html>
